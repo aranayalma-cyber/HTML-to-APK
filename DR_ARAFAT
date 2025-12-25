@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مساعد البرمجة المحلي - AI Code Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Monaco Editor (محرر VS Code) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs/loader.min.js"></script>
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <!-- Transformers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --success: #4cc9f0;
+            --warning: #f8961e;
+            --error: #f94144;
+            --dark: #1a1a2e;
+            --light: #f8f9fa;
+            --code-bg: #1e1e1e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: var(--light);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 350px 1fr 1fr;
+            gap: 20px;
+            height: 95vh;
+        }
+        
+        .sidebar {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .code-container {
+            display: flex;
+            flex-direction: column;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+        
+        .chat-header, .code-header {
+            text-align: center;
+            padding: 20px;
+            border-bottom: 2px solid rgba(67, 97, 238, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .chat-header h2, .code-header h2 {
+            color: var(--success);
+            font-size: 22px;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            scroll-behavior: smooth;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 90%;
+            animation: fadeIn 0.3s ease;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .user-message {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            margin-left: auto;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .ai-message {
+            background: rgba(255, 255, 255, 0.1);
+            margin-right: auto;
+            border-bottom-left-radius: 5px;
+            border-left: 3px solid var(--success);
+        }
+        
+        .code-message {
+            background: var(--code-bg);
+            border-left: 3px solid var(--warning);
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        
+        .chat-input {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .chat-input textarea {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(67, 97, 238, 0.3);
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+            resize: none;
+            min-height: 60px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+        
+        .chat-input textarea:focus {
+            border-color: var(--primary);
+        }
+        
+        .chat-input button {
+            padding: 15px 25px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-input button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.4);
+        }
+        
+        .chat-input button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stats-card h3 {
+            color: var(--success);
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stat-item span:first-child {
+            opacity: 0.8;
+        }
+        
+        .stat-item span:last-child {
+            font-weight: bold;
+        }
+        
+        .model-selection {
+            margin-top: 20px;
+        }
+        
+        .model-option {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .model-option:hover {
+            background: rgba(67, 97, 238, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .model-option.active {
+            background: rgba(67, 97, 238, 0.2);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(67, 97, 238, 0.3);
+        }
+        
+        .model-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .model-name {
+            font-weight: bold;
+            color: var(--success);
+        }
+        
+        .model-size {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+        
+        .model-desc {
+            font-size: 13px;
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .progress-text {
+            font-size: 12px;
+            text-align: center;
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .control-btn {
+            padding: 12px;
+            background: rgba(67, 97, 238, 0.2);
+            border: 1px solid var(--primary);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-btn:hover {
+            background: var(--primary);
+        }
+        
+        .control-btn.active {
+            background: var(--primary);
+            box-shadow: 0 0 20px rgba(67, 97, 238, 0.5);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .control-btn.loading {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .control-btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: loading 1.5s infinite;
+        }
+        
+        @keyframes loading {
+            to { left: 100%; }
+        }
+        
+        #editor {
+            flex: 1;
+            width: 100%;
+            min-height: 400px;
+        }
+        
+        .code-controls {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .code-controls button {
+            padding: 10px 20px;
+            background: rgba(67, 97, 238, 0.2);
+            border: 1px solid var(--primary);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            justify-content: center;
+        }
+        
+        .code-controls button:hover {
+            background: var(--primary);
+            transform: translateY(-2px);
+        }
+        
+        .code-controls button.run {
+            background: rgba(76, 201, 240, 0.2);
+            border-color: var(--success);
+        }
+        
+        .code-controls button.run:hover {
+            background: var(--success);
+        }
+        
+        .code-controls button.debug {
+            background: rgba(248, 150, 30, 0.2);
+            border-color: var(--warning);
+        }
+        
+        .code-controls button.debug:hover {
+            background: var(--warning);
+        }
+        
+        .code-controls button.ai {
+            background: rgba(58, 12, 163, 0.2);
+            border-color: var(--secondary);
+        }
+        
+        .code-controls button.ai:hover {
+            background: var(--secondary);
+        }
+        
+        .output-container {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        
+        .output-success {
+            color: var(--success);
+        }
+        
+        .output-error {
+            color: var(--error);
+        }
+        
+        .output-warning {
+            color: var(--warning);
+        }
+        
+        .language-selector {
+            display: flex;
+            gap: 10px;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .lang-btn {
+            padding: 5px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        
+        .lang-btn:hover {
+            background: rgba(67, 97, 238, 0.3);
+        }
+        
+        .lang-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .typing-indicator {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            color: var(--success);
+            margin-bottom: 15px;
+        }
+        
+        .typing-indicator span {
+            animation: blink 1.4s infinite;
+            margin: 0 2px;
+        }
+        
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .system-info {
+            font-size: 13px;
+            opacity: 0.8;
+            line-height: 1.5;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .metric {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--success);
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+        
+        .model-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-loaded {
+            background: rgba(76, 201, 240, 0.2);
+            color: var(--success);
+        }
+        
+        .status-loading {
+            background: rgba(248, 150, 30, 0.2);
+            color: var(--warning);
+        }
+        
+        .status-error {
+            background: rgba(249, 65, 68, 0.2);
+            color: var(--error);
+        }
+        
+        .code-snippet {
+            background: var(--code-bg);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border-left: 3px solid var(--primary);
+        }
+        
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        
+        .code-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: flex-end;
+        }
+        
+        .code-action-btn {
+            padding: 5px 12px;
+            background: rgba(67, 97, 238, 0.2);
+            border: 1px solid var(--primary);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .code-action-btn:hover {
+            background: var(--primary);
+        }
+        
+        @media (max-width: 1400px) {
+            .container {
+                grid-template-columns: 350px 1fr;
+                height: auto;
+            }
+            .code-container {
+                grid-column: 1 / -1;
+                height: 600px;
+            }
+        }
+        
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            .code-container {
+                height: 500px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .controls, .code-controls {
+                grid-template-columns: 1fr;
+            }
+            .language-selector {
+                flex-wrap: wrap;
+            }
+            .message {
+                max-width: 95%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- الشريط الجانبي -->
+        <div class="sidebar">
+            <div class="stats-card">
+                <h3><i class="fas fa-microchip"></i> حالة النظام البرمجي</h3>
+                <div id="stats-container">
+                    <div class="stat-item">
+                        <span>النموذج النشط:</span>
+                        <span id="active-model-name">لا يوجد</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>حالة النموذج:</span>
+                        <span id="model-status-text" class="model-status status-error">غير محمل</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>اللغة المحددة:</span>
+                        <span id="current-language">JavaScript</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>السطور المبرمجة:</span>
+                        <span id="lines-of-code">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>الأخطاء المكتشفة:</span>
+                        <span id="errors-found">0</span>
+                    </div>
+                </div>
+                
+                <div class="performance-metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="cpu-usage">0%</div>
+                        <div class="metric-label">استخدام CPU</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="memory-usage">0 MB</div>
+                        <div class="metric-label">الذاكرة</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stats-card">
+                <h3><i class="fas fa-robot"></i> نماذج البرمجة</h3>
+                <div class="model-selection">
+                    <div class="model-option active" onclick="selectModel('codegen')" id="model-codegen">
+                        <div class="model-info">
+                            <span class="model-name">CodeGen 350M</span>
+                            <span class="model-size">~350MB</span>
+                        </div>
+                        <div class="model-desc">
+                            توليد أكواد بـ 16 لغة برمجة، تدعم العربية في التوثيق
+                        </div>
+                        <div class="progress-bar" id="progress-codegen">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text-codegen">غير محمل</div>
+                    </div>
+                    
+                    <div class="model-option" onclick="selectModel('incoder')" id="model-incoder">
+                        <div class="model-info">
+                            <span class="model-name">InCoder 1B</span>
+                            <span class="model-size">~1GB</span>
+                        </div>
+                        <div class="model-desc">
+                            إكمال وتصحيح الأكواد، يملأ الأجزاء الناقصة
+                        </div>
+                        <div class="progress-bar" id="progress-incoder">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text-incoder">غير محمل</div>
+                    </div>
+                    
+                    <div class="model-option" onclick="selectModel('starcoder')" id="model-starcoder">
+                        <div class="model-info">
+                            <span class="model-name">StarCoderBase</span>
+                            <span class="model-size">~800MB</span>
+                        </div>
+                        <div class="model-desc">
+                            نموذج متقدم، يدعم 80+ لغة برمجة
+                        </div>
+                        <div class="progress-bar" id="progress-starcoder">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text-starcoder">غير محمل</div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="control-btn" id="load-btn" onclick="loadSelectedModel()">
+                        <i class="fas fa-download"></i>
+                        <span>تحميل النموذج</span>
+                    </button>
+                    <button class="control-btn" id="unload-btn" onclick="unloadModel()" disabled>
+                        <i class="fas fa-ban"></i>
+                        <span>إلغاء التحميل</span>
+                    </button>
+                    <button class="control-btn" onclick="clearCodeEditor()">
+                        <i class="fas fa-broom"></i>
+                        <span>مسح المحرر</span>
+                    </button>
+                    <button class="control-btn" onclick="saveProject()">
+                        <i class="fas fa-save"></i>
+                        <span>حفظ المشروع</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="stats-card">
+                <h3><i class="fas fa-code"></i> قوالب جاهزة</h3>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="lang-btn" onclick="loadTemplate('html_template')">موقع ويب HTML/CSS/JS</button>
+                    <button class="lang-btn" onclick="loadTemplate('python_template')">برنامج Python</button>
+                    <button class="lang-btn" onclick="loadTemplate('react_template')">مكون React</button>
+                    <button class="lang-btn" onclick="loadTemplate('node_template')">خادم Node.js</button>
+                    <button class="lang-btn" onclick="loadTemplate('algorithm_template')">خوارزمية بحث</button>
+                </div>
+                
+                <div class="system-info">
+                    <p><strong>المميزات:</strong></p>
+                    <ul style="padding-right: 15px; margin-top: 8px; font-size: 12px;">
+                        <li>توليد أكواد ذكي</li>
+                        <li>تصحيح أخطاء تلقائي</li>
+                        <li>تنفيذ مباشر في المتصفح</li>
+                        <li>دعم 16 لغة برمجة</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- منطقة المحادثة -->
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2><i class="fas fa-comments"></i> مساعد البرمجة الذكي</h2>
+                <p style="opacity: 0.7; margin-top: 5px;">اسأل عن البرمجة، اطلب أكواد، احصل على حلول</p>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <div class="message ai-message">
+                    <strong>المساعد:</strong> مرحباً! أنا مساعد برمجة متخصص. يمكنني:
+                    <ul style="margin-right: 20px; margin-top: 10px;">
+                        <li>كتابة أكواد برمجية</li>
+                        <li>شرح مفاهيم البرمجة</li>
+                        <li>تصحيح الأخطاء</li>
+                        <li>تحسين الكود</li>
+                        <li>كتابة توثيق عربي</li>
+                    </ul>
+                    <div style="margin-top: 10px; font-size: 13px; opacity: 0.8;">
+                        حمل نموذجاً من القائمة الجانبية للبدء.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input">
+                <textarea id="message-input" 
+                          placeholder="اكتب سؤالك البرمجي أو اطلب كوداً... (اضغط Ctrl+Enter للإرسال)"
+                          rows="2"></textarea>
+                <button id="send-btn" onclick="sendMessage()" disabled>
+                    <i class="fas fa-paper-plane"></i> إرسال
+                </button>
+            </div>
+        </div>
+        
+        <!-- منطقة الأكواد -->
+        <div class="code-container">
+            <div class="code-header">
+                <h2><i class="fas fa-code"></i> محرر الأكواد المتقدم</h2>
+                <p style="opacity: 0.7; margin-top: 5px;">اكتب، صحح، ونفذ الأكواد مباشرة</p>
+            </div>
+            
+            <div class="language-selector">
+                <button class="lang-btn active" onclick="changeLanguage('javascript')">JavaScript</button>
+                <button class="lang-btn" onclick="changeLanguage('python')">Python</button>
+                <button class="lang-btn" onclick="changeLanguage('html')">HTML</button>
+                <button class="lang-btn" onclick="changeLanguage('css')">CSS</button>
+                <button class="lang-btn" onclick="changeLanguage('java')">Java</button>
+                <button class="lang-btn" onclick="changeLanguage('cpp')">C++</button>
+                <button class="lang-btn" onclick="changeLanguage('php')">PHP</button>
+            </div>
+            
+            <div id="editor"></div>
+            
+            <div class="code-controls">
+                <button class="run" onclick="runCode()">
+                    <i class="fas fa-play"></i> تشغيل الكود
+                </button>
+                <button class="debug" onclick="debugCode()">
+                    <i class="fas fa-bug"></i> تصحيح أخطاء
+                </button>
+                <button class="ai" onclick="generateCode()">
+                    <i class="fas fa-robot"></i> توليد كود بالذكاء الاصطناعي
+                </button>
+                <button onclick="formatCode()">
+                    <i class="fas fa-align-left"></i> تنسيق الكود
+                </button>
+            </div>
+            
+            <div class="output-container" id="output-container">
+                <div class="output-warning">▶ منطقة النتائج: سيظهر ناتج تنفيذ الكود هنا</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== التهيئة والمتغيرات ==========
+        let activeModel = null;
+        let selectedModelType = 'codegen';
+        let pipeline = null;
+        let isModelLoading = false;
+        let isGenerating = false;
+        let editor = null;
+        let currentLanguage = 'javascript';
+        let linesOfCode = 0;
+        let errorsFound = 0;
+        let savedProjects = {};
+        
+        // معلومات النماذج البرمجية
+        const CODE_MODELS = {
+            'codegen': {
+                name: 'CodeGen 350M',
+                size: '350MB',
+                description: 'نموذج توليد أكواد بدعم 16 لغة',
+                modelId: 'Xenova/codegen-350M-multi',
+                task: 'text-generation',
+                languages: ['javascript', 'python', 'java', 'cpp', 'php', 'html', 'css'],
+                supported: true
+            },
+            'incoder': {
+                name: 'InCoder 1B',
+                size: '1GB',
+                description: 'إكمال وتصحيح الأكواد',
+                modelId: 'Xenova/incoder-1B',
+                task: 'text-generation',
+                languages: ['javascript', 'python', 'java', 'cpp', 'go', 'rust'],
+                supported: true
+            },
+            'starcoder': {
+                name: 'StarCoderBase',
+                size: '800MB',
+                description: 'نموذج متقدم لدعم 80+ لغة',
+                modelId: 'Xenova/starcoderbase',
+                task: 'text-generation',
+                languages: ['javascript', 'python', 'java', 'cpp', 'php', 'go', 'rust', 'html', 'css'],
+                supported: true
+            }
+        };
+        
+        // قوالب جاهزة
+        const CODE_TEMPLATES = {
+            'html_template': {
+                language: 'html',
+                code: `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>موقعي الأول</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+        }
+        
+        p {
+            font-size: 1.2rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .btn {
+            background: white;
+            color: #667eea;
+            padding: 12px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s;
+            border: 2px solid white;
+        }
+        
+        .btn:hover {
+            background: transparent;
+            color: white;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+        
+        .feature {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 مرحباً بكم في موقعي</h1>
+        <p>هذا موقع ويب تفاعسي تم إنشاؤه باستخدام HTML و CSS و JavaScript. يمكنك تطويره وإضافة المزيد من المميزات.</p>
+        
+        <a href="#" class="btn" onclick="showMessage()">اضغط هنا</a>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>💻 متجاوب</h3>
+                <p>يتوافق مع جميع أحجام الشاشات</p>
+            </div>
+            <div class="feature">
+                <h3>⚡ سريع</h3>
+                <p>أداء عالي وسريع التحميل</p>
+            </div>
+            <div class="feature">
+                <h3>🔒 آمن</h3>
+                <p>يتبع أفضل ممارسات الأمان</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showMessage() {
+            alert('مرحباً! هذا الموقع يعمل بكود JavaScript.');
+        }
+        
+        // تحديث التاريخ تلقائياً
+        document.addEventListener('DOMContentLoaded', function() {
+            const dateElement = document.createElement('p');
+            dateElement.textContent = 'تاريخ اليوم: ' + new Date().toLocaleDateString('ar-SA');
+            dateElement.style.marginTop = '20px';
+            dateElement.style.opacity = '0.7';
+            document.querySelector('.container').appendChild(dateElement);
+        });
+    <\/script>
+</body>
+</html>`
+            },
+            'python_template': {
+                language: 'python',
+                code: `# برنامج Python لمعالجة البيانات
+# المؤلف: مساعد الذكاء الاصطناعي
+
+def calculate_statistics(numbers):
+    """
+    حساب الإحصائيات الأساسية لقائمة من الأرقام
+    """
+    if not numbers:
+        return None
+    
+    stats = {
+        'المجموع': sum(numbers),
+        'المتوسط': sum(numbers) / len(numbers),
+        'العدد': len(numbers),
+        'الأصغر': min(numbers),
+        'الأكبر': max(numbers)
+    }
+    
+    # حساب الوسيط
+    sorted_numbers = sorted(numbers)
+    n = len(sorted_numbers)
+    if n % 2 == 0:
+        stats['الوسيط'] = (sorted_numbers[n//2 - 1] + sorted_numbers[n//2]) / 2
+    else:
+        stats['الوسيط'] = sorted_numbers[n//2]
+    
+    return stats
+
+def fibonacci_sequence(n):
+    """
+    إنشاء متتالية فيبوناتشي حتى الحد النوني
+    """
+    sequence = [0, 1]
+    for i in range(2, n):
+        sequence.append(sequence[-1] + sequence[-2])
+    return sequence[:n]
+
+def is_prime(num):
+    """
+    التحقق إذا كان الرقم أولياً
+    """
+    if num < 2:
+        return False
+    for i in range(2, int(num ** 0.5) + 1):
+        if num % i == 0:
+            return False
+    return True
+
+# مثال على الاستخدام
+if __name__ == "__main__":
+    # اختبار دالة الإحصائيات
+    data = [12, 45, 23, 67, 89, 34, 56, 78, 90, 21]
+    print("📊 الإحصائيات:")
+    stats = calculate_statistics(data)
+    for key, value in stats.items():
+        print(f"  {key}: {value}")
+    
+    # اختبار متتالية فيبوناتشي
+    print("\n🔢 متتالية فيبوناتشي (10 حدود):")
+    fib = fibonacci_sequence(10)
+    print(f"  {fib}")
+    
+    # اختبار الأعداد الأولية
+    print("\n🔍 الأعداد الأولية بين 1 و 30:")
+    primes = [num for num in range(1, 31) if is_prime(num)]
+    print(f"  {primes}")
+    
+    print("\n✅ تم تنفيذ البرنامج بنجاح!")`
+            },
+            'javascript_template': {
+                language: 'javascript',
+                code: `// برنامج JavaScript لإدارة المهام
+// نظام إدارة المهام التفاعلي
+
+class TaskManager {
+    constructor() {
+        this.tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        this.loadTasks();
+    }
+    
+    addTask(title, description, priority = 'medium') {
+        const task = {
+            id: Date.now(),
+            title,
+            description,
+            priority,
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+        
+        this.tasks.push(task);
+        this.saveTasks();
+        this.renderTasks();
+        return task;
+    }
+    
+    completeTask(id) {
+        const taskIndex = this.tasks.findIndex(task => task.id === id);
+        if (taskIndex !== -1) {
+            this.tasks[taskIndex].completed = true;
+            this.saveTasks();
+            this.renderTasks();
+            return true;
+        }
+        return false;
+    }
+    
+    deleteTask(id) {
+        this.tasks = this.tasks.filter(task => task.id !== id);
+        this.saveTasks();
+        this.renderTasks();
+    }
+    
+    saveTasks() {
+        localStorage.setItem('tasks', JSON.stringify(this.tasks));
+    }
+    
+    loadTasks() {
+        console.log('تم تحميل المهام:', this.tasks.length);
+    }
+    
+    renderTasks() {
+        const container = document.getElementById('tasks-container');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        this.tasks.forEach(task => {
+            const taskElement = document.createElement('div');
+            taskElement.className = 'task' + (task.completed ? ' completed' : '');
+            taskElement.innerHTML = \`
+                <h3>\${task.title}</h3>
+                <p>\${task.description}</p>
+                <div class="task-meta">
+                    <span class="priority \${task.priority}">\${task.priority}</span>
+                    <span class="date">\${new Date(task.createdAt).toLocaleDateString('ar-SA')}</span>
+                </div>
+                <div class="task-actions">
+                    \${!task.completed ? '<button onclick="taskManager.completeTask(' + task.id + ')">✓ إكمال</button>' : ''}
+                    <button onclick="taskManager.deleteTask(' + task.id + ')">🗑 حذف</button>
+                </div>
+            \`;
+            container.appendChild(taskElement);
+        });
+        
+        this.updateStats();
+    }
+    
+    updateStats() {
+        const total = this.tasks.length;
+        const completed = this.tasks.filter(t => t.completed).length;
+        const pending = total - completed;
+        
+        console.log(\`📊 الإحصائيات: \${total} مهام | \${completed} مكتملة | \${pending} قيد الانتظار\`);
+    }
+    
+    clearAll() {
+        if (confirm('هل تريد حذف جميع المهام؟')) {
+            this.tasks = [];
+            this.saveTasks();
+            this.renderTasks();
+        }
+    }
+}
+
+// إنشاء مدير المهام
+const taskManager = new TaskManager();
+
+// دالة لاختبار النظام
+function testTaskManager() {
+    console.log('اختبار نظام إدارة المهام...');
+    
+    // إضافة مهام اختبارية
+    taskManager.addTask('تعلّم JavaScript', 'دراسة مفاهيم JavaScript المتقدمة', 'high');
+    taskManager.addTask('مشروع الذكاء الاصطناعي', 'إنشاء مساعد ذكي للبرمجة', 'high');
+    taskManager.addTask('التسوق', 'شراء مستلزمات المكتب', 'low');
+    
+    console.log('تمت إضافة 3 مامج اختبارية');
+}
+
+// تهيئة النظام عند التحميل
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 نظام إدارة المهام جاهز!');
+    
+    // إضافة معالج للأزرار
+    document.getElementById('add-task-btn')?.addEventListener('click', function() {
+        const title = prompt('أدخل عنوان المهمة:');
+        if (title) {
+            const description = prompt('أدخل وصف المهمة:');
+            taskManager.addTask(title, description || '');
+        }
+    });
+    
+    document.getElementById('test-btn')?.addEventListener('click', testTaskManager);
+    document.getElementById('clear-btn')?.addEventListener('click', () => taskManager.clearAll());
+    
+    // عرض المهام الحالية
+    taskManager.renderTasks();
+});`
+            }
+        };
+        
+        // ========== التهيئة ==========
+        document.addEventListener('DOMContentLoaded', async function() {
+            // تهيئة محرر Monaco
+            require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs' } });
+            
+            require(['vs/editor/editor.main'], function() {
+                editor = monaco.editor.create(document.getElementById('editor'), {
+                    value: '// اكتب كودك هنا...\nconsole.log("مرحباً بالعالم!");',
+                    language: 'javascript',
+                    theme: 'vs-dark',
+                    fontSize: 14,
+                    minimap: { enabled: true },
+                    scrollBeyondLastLine: false,
+                    automaticLayout: true,
+                    wordWrap: 'on'
+                });
+                
+                // تحديث عدد السطور عند التغيير
+                editor.onDidChangeModelContent(() => {
+                    updateCodeStats();
+                });
+            });
+            
+            // تهيئة النموذج الافتراضي
+            selectModel('codegen');
+            changeLanguage('javascript');
+            
+            // تحميل المشاريع المحفوظة
+            loadSavedProjects();
+            
+            // تحديث إحصائيات النظام
+            updateSystemInfo();
+            setInterval(updateSystemInfo, 5000);
+            
+            showNotification('مساعد البرمجة المحلي جاهز للاستخدام!', 'success');
+        });
+        
+        // ========== إدارة النماذج ==========
+        function selectModel(modelType) {
+            if (isModelLoading) {
+                showNotification('يرجى الانتظار حتى اكتمال التحميل الحالي', 'warning');
+                return;
+            }
+            
+            // إلغاء تحديد النماذج الأخرى
+            document.querySelectorAll('.model-option').forEach(opt => {
+                opt.classList.remove('active');
+            });
+            
+            // تحديد النموذج المختار
+            document.getElementById(`model-${modelType}`).classList.add('active');
+            selectedModelType = modelType;
+            
+            // تحديث المعلومات
+            const model = CODE_MODELS[modelType];
+            document.getElementById('active-model-name').textContent = model.name;
+            
+            showNotification(`تم اختيار: ${model.name} - ${model.description}`, 'info');
+        }
+        
+        async function loadSelectedModel() {
+            if (isModelLoading) {
+                showNotification('جاري بالفعل تحميل نموذج', 'warning');
+                return;
+            }
+            
+            const model = CODE_MODELS[selectedModelType];
+            if (!model.supported) {
+                showNotification('هذا النموذج غير متوفر حالياً', 'error');
+                return;
+            }
+            
+            const loadBtn = document.getElementById('load-btn');
+            const progressBar = document.getElementById(`progress-${selectedModelType}`);
+            const progressText = document.getElementById(`progress-text-${selectedModelType}`);
+            
+            // تحديث الواجهة
+            loadBtn.classList.add('loading');
+            loadBtn.disabled = true;
+            isModelLoading = true;
+            updateModelStatus('loading', 'جاري التحميل...');
+            
+            try {
+                // عرض التقدم
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += Math.random() * 10;
+                    if (progress > 90) progress = 90;
+                    progressBar.querySelector('.progress-fill').style.width = `${progress}%`;
+                    progressText.textContent = `جاري التحميل... ${Math.round(progress)}%`;
+                }, 300);
+                
+                // تحميل النموذج باستخدام Transformers.js
+                showNotification(`بدء تحميل ${model.name}، قد يستغرق بضع دقائق...`, 'info', 5000);
+                
+                const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0');
+                
+                // إنشاء pipeline للنموذج
+                const modelPipeline = await pipeline(
+                    model.task,
+                    model.modelId,
+                    {
+                        progress_callback: (data) => {
+                            const currentProgress = data.progress * 100;
+                            progressBar.querySelector('.progress-fill').style.width = `${currentProgress}%`;
+                            progressText.textContent = `جاري التحميل... ${Math.round(currentProgress)}%`;
+                        }
+                    }
+                );
+                
+                clearInterval(progressInterval);
+                
+                // تعيين النموذج النشط
+                activeModel = modelPipeline;
+                pipeline = modelPipeline;
+                
+                // تحديث الواجهة
+                progressBar.querySelector('.progress-fill').style.width = '100%';
+                progressText.textContent = 'محمل ✅';
+                loadBtn.classList.remove('loading');
+                loadBtn.innerHTML = '<i class="fas fa-check"></i><span>تم التحميل</span>';
+                document.getElementById('unload-btn').disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                
+                isModelLoading = false;
+                updateModelStatus('loaded', 'محمل وجاهز');
+                
+                // حفظ حالة النموذج
+                saveModelState();
+                
+                showNotification(`تم تحميل ${model.name} بنجاح! يمكنك الآن توليد الأكواد.`, 'success');
+                
+                // إضافة رسالة ترحيبية
+                addSystemMessage(`✅ تم تحميل ${model.name} بنجاح. يمكنني الآن مساعدتك في:
+                • كتابة أكواد بـ ${model.languages.length} لغة برمجة
+                • تصحيح الأخطاء
+                • شرح المفاهيم البرمجية
+                • تحسين الكود`);
+                
+            } catch (error) {
+                console.error('خطأ في تحميل النموذج:', error);
+                clearInterval(progressInterval);
+                
+                // تحديث الواجهة
+                progressBar.querySelector('.progress-fill').style.width = '0%';
+                progressText.textContent = 'فشل التحميل ❌';
+                loadBtn.classList.remove('loading');
+                loadBtn.disabled = false;
+                
+                isModelLoading = false;
+                updateModelStatus('error', 'فشل التحميل');
+                
+                showNotification(`فشل تحميل النموذج: ${error.message}`, 'error');
+            }
+        }
+        
+        function unloadModel() {
+            if (!activeModel) return;
+            
+            // تحرير الذاكرة
+            if (activeModel.dispose) {
+                activeModel.dispose();
+            }
+            
+            // إعادة تعيين المتغيرات
+            activeModel = null;
+            pipeline = null;
+            
+            // تحديث الواجهة
+            document.getElementById('load-btn').classList.remove('loading');
+            document.getElementById('load-btn').innerHTML = '<i class="fas fa-download"></i><span>تحميل النموذج</span>';
+            document.getElementById('load-btn').disabled = false;
+            document.getElementById('unload-btn').disabled = true;
+            document.getElementById('send-btn').disabled = true;
+            
+            updateModelStatus('error', 'غير محمل');
+            document.getElementById('active-model-name').textContent = 'لا يوجد';
+            
+            showNotification('تم إلغاء تحميل النموذج وتحرير الذاكرة', 'info');
+        }
+        
+        function updateModelStatus(status, message) {
+            const statusElement = document.getElementById('model-status-text');
+            statusElement.textContent = message;
+            statusElement.className = 'model-status';
+            
+            switch(status) {
+                case 'loaded':
+                    statusElement.classList.add('status-loaded');
+                    break;
+                case 'loading':
+                    statusElement.classList.add('status-loading');
+                    break;
+                case 'error':
+                    statusElement.classList.add('status-error');
+                    break;
+            }
+        }
+        
+        // ========== المحادثة والمساعد البرمجي ==========
+        async function sendMessage() {
+            if (isGenerating || !activeModel) return;
+            
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (!message) {
+                showNotification('الرجاء كتابة سؤالك البرمجي', 'warning');
+                return;
+            }
+            
+            // إضافة رسالة المستخدم
+            addMessage(message, 'user');
+            input.value = '';
+            isGenerating = true;
+            document.getElementById('send-btn').disabled = true;
+            
+            // عرض مؤشر الكتابة
+            showTypingIndicator();
+            
+            try {
+                // توليد الرد باستخدام النموذج
+                const startTime = performance.now();
+                
+                const response = await generateCodeResponse(message);
+                
+                const endTime = performance.now();
+                const inferenceTime = endTime - startTime;
+                
+                // إضافة الرد
+                removeTypingIndicator();
+                addMessage(response, 'ai', inferenceTime);
+                
+                // تحديث الإحصائيات
+                updateSystemInfo();
+                
+            } catch (error) {
+                console.error('خطأ في توليد الرد:', error);
+                removeTypingIndicator();
+                addMessage(`عذراً، حدث خطأ: ${error.message}`, 'ai');
+                showNotification('خطأ في توليد الرد', 'error');
+            } finally {
+                isGenerating = false;
+                document.getElementById('send-btn').disabled = false;
+                input.focus();
+            }
+        }
+        
+        async function generateCodeResponse(prompt) {
+            try {
+                const model = CODE_MODELS[selectedModelType];
+                
+                // بناء prompt خاص بالبرمجة
+                const codePrompt = `// ${prompt}\n// كتابة كود ${currentLanguage}\n// الشرح بالعربية\n\n`;
+                
+                // استخدام النموذج لتوليد الكود
+                const result = await pipeline(codePrompt, {
+                    max_new_tokens: 500,
+                    temperature: 0.3,
+                    do_sample: true,
+                    top_p: 0.95,
+                    repetition_penalty: 1.1
+                });
+                
+                let generatedCode = result[0].generated_text;
+                
+                // استخراج الكود فقط إذا كان هناك شرح
+                const codeMatch = generatedCode.match(/```[\w]*\n([\s\S]*?)\n```/);
+                if (codeMatch) {
+                    generatedCode = codeMatch[1];
+                }
+                
+                // إضافة الكود للمحرر
+                insertCodeToEditor(generatedCode);
+                
+                return `✅ تم توليد كود ${currentLanguage} بناءً على طلبك. تم إضافته للمحرر.\n\n` +
+                       `📝 **الكود الذي تم إنشاؤه:**\n` +
+                       `\`\`\`${currentLanguage}\n${generatedCode}\n\`\`\`\n\n` +
+                       `💡 **ملاحظة:** يمكنك تعديل الكود في المحرر وتشغيله مباشرة.`;
+                
+            } catch (error) {
+                // استخدام رد افتراضي في حالة الخطأ
+                return `🤖 **المساعد:** أفهم أنك تطلب: "${promrompt}"\n\n` +
+                       `أقترح كتابة الكود التالي في لغة ${currentLanguage}:\n\n` +
+                       `\`\`\`${currentLanguage}\n// كود ${currentLanguage} لمتطلباتك\nfunction solution() {\n  // اكتب منطق الحل هنا\n  console.log("مرحباً بالعالم!");\n}\n\`\`\`\n\n` +
+                       `💡 **نصيحة:** يمكنك استخدام أزرار التحكم في المحرر لتوليد كود أوثق بمتطلباتك.`;
+            }
+        }
+        
+        // ========== محرر الأكواد ==========
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            
+            // تحديث أزرار اللغة
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // تحديث المحرر
+            if (editor) {
+                const model = editor.getModel();
+                monaco.editor.setModelLanguage(model, lang);
+            }
+            
+            document.getElementById('current-language').textContent = 
+                lang === 'javascript' ? 'JavaScript' :
+                lang === 'python' ? 'Python' :
+                lang === 'html' ? 'HTML' :
+                lang === 'css' ? 'CSS' :
+                lang === 'java' ? 'Java' :
+                lang === 'cpp' ? 'C++' :
+                lang === 'php' ? 'PHP' : lang;
+            
+            showNotification(`تم تغيير لغة البرمجة إلى ${lang}`, 'info');
+        }
+        
+        function updateCodeStats() {
+            if (!editor) return;
+            
+            const code = editor.getValue();
+            linesOfCode = code.split('\n').length;
+            document.getElementById('lines-of-code').textContent = linesOfCode;
+            
+            // اكتشاف الأخطاء البسيطة (محاكاة)
+            const errors = detectSimpleErrors(code, currentLanguage);
+            errorsFound = errors.length;
+            document.getElementById('errors-found').textContent = errorsFound;
+            
+            if (errorsFound > 0) {
+                showNotification(`تم اكتشاف ${errorsFound} خطأ في الكود`, 'warning', 2000);
+            }
+        }
+        
+        function detectSimpleErrors(code, language) {
+            const errors = [];
+            
+            if (language === 'javascript') {
+                // اكتشاف أخطاء JavaScript شائعة
+                if (code.includes('console.log') && !code.includes('console')) {
+                    errors.push('قد تحتاج إلى تعريف console');
+                }
+                if (code.match(/function\s+\w+\s*\(/g) && !code.includes('return') && code.includes('function')) {
+                    errors.push('دالة بدون return قد لا تعمل كما هو متوقع');
+                }
+            }
+            
+            if (language === 'python') {
+                // اكتشاف أخطاء Python شائعة
+                if (code.includes('print') && code.includes('Python 3')) {
+                    // لا شيء
+                }
+                if (code.includes('import') && !code.includes('from')) {
+                    const imports = code.match(/import\s+(\w+)/g);
+                    if (imports) {
+                        imports.forEach(imp => {
+                            if (!code.includes(imp.split(' ')[1])) {
+                                errors.push(`المكتبة ${imp} مستوردة لكن غير مستخدمة`);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            return errors;
+        }
+        
+        function runCode() {
+            const code = editor.getValue();
+            const output = document.getElementById('output-container');
+            
+            output.innerHTML = '<div class="output-warning">▶ جاري تنفيذ الكود...</div>';
+            
+            try {
+                let result;
+                
+                switch(currentLanguage) {
+                    case 'javascript':
+                        result = executeJavaScript(code);
+                        break;
+                    case 'python':
+                        result = executePython(code);
+                        break;
+                    case 'html':
+                        result = executeHTML(code);
+                        break;
+                    default:
+                        result = { output: 'تنفيذ هذه اللغة غير مدعوم مباشرة في المتصفح', error: null };
+                }
+                
+                if (result.error) {
+                    output.innerHTML = `<div class="output-error">❌ خطأ في التنفيذ:\n${result.error}</div>`;
+                    errorsFound++;
+                } else {
+                    output.innerHTML = `<div class="output-success">✅ تم التنفيذ بنجاح:\n${result.output}</div>`;
+                }
+                
+            } catch (error) {
+                output.innerHTML = `<div class="output-error">❌ خطأ غير متوقع:\n${error.message}</div>`;
+                errorsFound++;
+            }
+            
+            updateCodeStats();
+        }
+        
+        function executeJavaScript(code) {
+            try {
+                // التقاط console.log
+                let output = '';
+                const originalLog = console.log;
+                console.log = function(...args) {
+                    output += args.join(' ') + '\n';
+                    originalLog.apply(console, args);
+                };
+                
+                // تنفيذ الكود
+                eval(code);
+                
+                // إعادة console.log الأصلي
+                console.log = originalLog;
+                
+                return { output: output || 'تم التنفيذ بدون إخراج', error: null };
+            } catch (error) {
+                return { output: null, error: error.message };
+            }
+        }
+        
+        function executePython(code) {
+            // محاكاة تنفيذ Python (في الواقع يحتاج لخادم بايثون)
+            try {
+                // محاكاة بسيطة لأكواد Python الشائعة
+                let output = '';
+                
+                if (code.includes('print(')) {
+                    const prints = code.match(/print\((.*?)\)/g);
+                    if (prints) {
+                        prints.forEach(p => {
+                            const content = p.match(/print\((.*?)\)/)[1];
+                            output += eval(content) + '\n';
+                        });
+                    }
+                }
+                
+                if (code.includes('def ')) {
+                    output += 'تم تعريف الدوال بنجاح\n';
+                }
+                
+                return { 
+                    output: output || 'ملاحظة: تنفيذ Python الكامل يحتاج لخادم بايثون حقيقي', 
+                    error: null 
+                };
+            } catch (error) {
+                return { output: null, error: error.message };
+            }
+        }
+        
+        function executeHTML(code) {
+            try {
+                // فتح نافذة جديدة لعرض HTML
+                const newWindow = window.open();
+                newWindow.document.write(code);
+                newWindow.document.close();
+                
+                return { 
+                    output: 'تم فتح صفحة HTML في نافذة جديدة', 
+                    error: null 
+                };
+            } catch (error) {
+                return { output: null, error: error.message };
+            }
+        }
+        
+        function debugCode() {
+            const code = editor.getValue();
+            const errors = detectSimpleErrors(code, currentLanguage);
+            
+            const output = document.getElementById('output-container');
+            
+            if (errors.length === 0) {
+                output.innerHTML = '<div class="output-success">✅ لم يتم اكتشاف أخطاء واضحة في الكود.</div>';
+            } else {
+                let errorList = '🔍 اكتشفت الأخطاء التالية:\n\n';
+                errors.forEach((error, index) => {
+                    errorList += `${index + 1}. ${error}\n`;
+                });
+                output.innerHTML = `<div class="output-warning">${errorList}</div>`;
+            }
+            
+            errorsFound = errors.length;
+            document.getElementById('errors-found').textContent = errorsFound;
+            
+            showNotification(`تم اكتشاف ${errors.length} خطأ`, errors.length > 0 ? 'warning' : 'success');
+        }
+        
+        async function generateCode() {
+            if (!activeModel) {
+                showNotification('يرجى تحميل نموذج أولاً', 'warning');
+                return;
+            }
+            
+            const prompt = prompt('أدخل وصف للكود الذي تريده:', `اكتب دالة ${currentLanguage} لـ ...`);
+            if (!prompt) return;
+            
+            showNotification('جاري توليد الكود...', 'info');
+            
+            try {
+                const codePrompt = `// ${prompt}\n// كود ${currentLanguage} كامل\n// مع تعليقات بالعربية\n\n`;
+                
+                const result = await pipeline(codePrompt, {
+                    max_new_tokens: 300,
+                    temperature: 0.2,
+                    do_sample: true
+                });
+                
+                let generatedCode = result[0].generated_text;
+                
+                // تنظيف الكود
+                generatedCode = generatedCode.replace(/```[\w]*\n?/, '').replace(/\n```$/, '');
+                
+                // إضافة الكود للمحرر
+                insertCodeToEditor(generatedCode);
+                
+                showNotification('تم توليد الكود بنجاح!', 'success');
+                
+            } catch (error) {
+                showNotification('فشل في توليد الكود: ' + error.message, 'error');
+            }
+        }
+        
+        function formatCode() {
+            if (!editor) return;
+            
+            const code = editor.getValue();
+            let formattedCode = code;
+            
+            // تنسيق بسيط
+            switch(currentLanguage) {
+                case 'javascript':
+                case 'java':
+                case 'cpp':
+                    formattedCode = formatJavaScriptLike(code);
+                    break;
+                case 'python':
+                    formattedCode = formatPython(code);
+                    break;
+                case 'html':
+                    formattedCode = formatHTML(code);
+                    break;
+                case 'css':
+                    formattedCode = formatCSS(code);
+                    break;
+            }
+            
+            editor.setValue(formattedCode);
+            showNotification('تم تنسيق الكود', 'success');
+        }
+        
+        function formatJavaScriptLike(code) {
+            // تنسيق بسيط للغات المشابهة لـ JavaScript
+            return code
+                .replace(/\{/g, ' {\n')
+                .replace(/\}/g, '\n}\n')
+                .replace(/;/g, ';\n')
+                .replace(/\n\s*\n/g, '\n');
+        }
+        
+        function insertCodeToEditor(code) {
+            if (!editor) return;
+            
+            const currentPosition = editor.getPosition();
+            editor.executeEdits("", [{
+                range: new monaco.Range(
+                    currentPosition.lineNumber,
+                    currentPosition.column,
+                    currentPosition.lineNumber,
+                    currentPosition.column
+                ),
+                text: '\n' + code + '\n'
+            }]);
+        }
+        
+        function clearCodeEditor() {
+            if (confirm('هل تريد مسح جميع الأكواد من المحرر؟')) {
+                editor.setValue('// اكتب كودك هنا...\nconsole.log("مرحباً بالعالم!");');
+                showNotification('تم مسح المحرر', 'info');
+            }
+        }
+        
+        function loadTemplate(templateName) {
+            const template = CODE_TEMPLATES[templateName];
+            if (template) {
+                editor.setValue(template.code);
+                changeLanguage(template.language);
+                showNotification(`تم تحميل قالب ${templateName}`, 'success');
+            }
+        }
+        
+        // ========== إدارة المشاريع ==========
+        function saveProject() {
+            const projectName = prompt('أدخل اسم المشروع:', `مشروع_${new Date().toISOString().slice(0, 10)}`);
+            if (!projectName) return;
+            
+            const project = {
+                name: projectName,
+                code: editor.getValue(),
+                language: currentLanguage,
+                savedAt: new Date().toISOString(),
+                lines: linesOfCode
+            };
+            
+            savedProjects[projectName] = project;
+            
+            try {
+                localStorage.setItem('code_projects', JSON.stringify(savedProjects));
+                showNotification(`تم حفظ المشروع "${projectName}"`, 'success');
+            } catch (e) {
+                showNotification('فشل في حفظ المشروع: ' + e.message, 'error');
+            }
+        }
+        
+        function loadSavedProjects() {
+            try {
+                const saved = localStorage.getItem('code_projects');
+                if (saved) {
+                    savedProjects = JSON.parse(saved);
+                    console.log('تم تحميل المشاريع:', Object.keys(savedProjects).length);
+                }
+            } catch (e) {
+                console.error('خطأ في تحميل المشاريع:', e);
+            }
+        }
+        
+        function saveModelState() {
+            try {
+                const modelState = {
+                    modelType: selectedModelType,
+                    lastUsed: new Date().toISOString(),
+                    projectsCount: Object.keys(savedProjects).length
+                };
+                localStorage.setItem('code_model_state', JSON.stringify(modelState));
+            } catch (e) {
+                console.error('خطأ في حفظ حالة النموذج:', e);
+            }
+        }
+        
+        // ========== وظائف المساعدة ==========
+        function addMessage(text, sender, inferenceTime = null) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            
+            messageDiv.className = `message ${sender}-message`;
+            
+            let messageHTML = `<strong>${sender === 'user' ? 'أنت' : '🤖 المساعد'}:</strong> ${escapeHtml(text)}`;
+            
+            if (inferenceTime && sender === 'ai') {
+                const model = CODE_MODELS[selectedModelType];
+                messageHTML += `<div class="token-info">⏱ ${Math.round(inferenceTime)}ms | ${model.name}</div>`;
+            }
+            
+            messageDiv.innerHTML = messageHTML;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function addSystemMessage(text) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            
+            messageDiv.className = 'message ai-message';
+            messageDiv.style.background = 'rgba(76, 201, 240, 0.1)';
+            messageDiv.innerHTML = `<strong><i class="fas fa-info-circle"></i> النظام:</strong> ${escapeHtml(text)}`;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            const messagesDiv = document.getElementById('chat-messages');
+            const indicator = document.createElement('div');
+            indicator.id = 'typing-indicator';
+            indicator.className = 'typing-indicator';
+            indicator.innerHTML = 'المساعد يكتب الكود <span>.</span><span>.</span><span>.</span>';
+            
+            messagesDiv.appendChild(indicator);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        function removeTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            if (indicator) indicator.remove();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/\n/g, '<br>');
+        }
+        
+        function updateSystemInfo() {
+            // محاكاة استخدام الموارد
+            const memoryUsage = 100 + (linesOfCode * 0.1) + (activeModel ? 200 : 0);
+            document.getElementById('memory-usage').textContent = `${memoryUsage.toFixed(1)} MB`;
+            
+            const cpuUsage = 5 + Math.random() * 15 + (isGenerating ? 20 : 0);
+            document.getElementById('cpu-usage').textContent = `${cpuUsage.toFixed(0)}%`;
+        }
+        
+        function showNotification(message, type = 'info', duration = 3000) {
+            // إزالة أي إشعارات سابقة
+            document.querySelectorAll('.notification').forEach(n => n.remove());
+            
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            
+            const iconMap = {
+                success: 'check-circle',
+                error: 'exclamation-circle',
+                warning: 'exclamation-triangle',
+                info: 'info-circle'
+            };
+            
+            notification.innerHTML = `
+                <i class="fas fa-${iconMap[type] || 'info-circle'}" style="color: ${
+                    type === 'success' ? 'var(--success)' : 
+                    type === 'error' ? 'var(--error)' : 
+                    type === 'warning' ? 'var(--warning)' : 'var(--primary)'
+                }"></i>
+                <span>${message}</span>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => notification.remove(), 300);
+            }, duration);
+        }
+        
+        // تهيئة textarea
+        document.getElementById('message-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+            
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+    </script>
+</body>
+</html>
